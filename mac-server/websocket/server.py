@@ -143,20 +143,26 @@ async def websocket_handler(websocket: WebSocket, pipeline, morph_state, face_ap
                 )
 
             elif msg_type == "face_image":
-                # iPad sends a JPEG of the user's face for InsightFace identity extraction
+                # iPad sends a JPEG of the user's face for InsightFace identity extraction.
+                # Use PIL (not cv2) to decode — PIL applies EXIF orientation automatically,
+                # which matters because the ARKit front camera captures in landscape.
                 b64 = msg.get("jpeg_b64", "")
                 if b64:
                     try:
+                        from PIL import Image as PILImage, ImageOps
+                        import io
                         img_bytes = base64.b64decode(b64)
-                        nparr = np.frombuffer(img_bytes, np.uint8)
-                        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-                        if frame is not None:
-                            emb = extract_embedding(face_app, frame)
-                            if emb is not None:
-                                accumulator.update(emb)
-                                _, conf = accumulator.get()
-                                print(f"[face]  embedding updated  "
-                                      f"n={accumulator.count}  conf={conf:.0%}")
+                        pil_img   = PILImage.open(io.BytesIO(img_bytes))
+                        pil_img   = ImageOps.exif_transpose(pil_img)   # apply rotation
+                        frame     = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+                        emb = extract_embedding(face_app, frame)
+                        if emb is not None:
+                            accumulator.update(emb)
+                            _, conf = accumulator.get()
+                            print(f"[face]  embedding updated  "
+                                  f"n={accumulator.count}  conf={conf:.0%}")
+                        else:
+                            print("[face]  no face detected in frame")
                     except Exception as e:
                         print(f"[face]  image error: {e}")
 

@@ -127,8 +127,10 @@ class GenerationPipeline:
         )
         elapsed = time.time() - t0
 
-        # Apply noise overlay: fades as confidence builds, never fully disappears
-        noise_alpha = max(NOISE_MIN, 1.0 - confidence)
+        # Noise fades from NOISE_MAX → NOISE_MIN as confidence builds.
+        # Capped at 0.55 so the generated face is always partially visible —
+        # even at zero confidence you see the face through the static, not pure noise.
+        noise_alpha = NOISE_MIN + (0.55 - NOISE_MIN) * (1.0 - confidence)
         output = noise_blend(result.images[0], noise_alpha)
 
         return output, elapsed
