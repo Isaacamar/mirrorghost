@@ -1,0 +1,12 @@
+torch>=2.2.0
+torchvision
+diffusers>=0.27.0
+transformers>=4.38.0
+accelerate>=0.27.0
+controlnet-aux>=0.0.7
+mediapipe>=0.10.0
+opencv-python>=4.9.0
+pygame>=2.5.0
+numpy>=1.26.0
+Pillow>=10.0.0
+scipy>=1.12.0
