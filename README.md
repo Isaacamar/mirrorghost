@@ -1,130 +1,176 @@
-# Reflection
+# mirrorghost
 
-A real-time generative face installation. A person stands in front of a camera. On screen, a face slowly builds — an AI impression that eerily resembles them but isn't them. The process is visible: noise resolves into features, identity accumulates over time.
-
-Intended for projection onto a mannequin head.
+A real-time generative face installation. A person stands in front of a camera. On screen, their face is continuously reconstructed — recognizable but wrong, always mid-process, never resolving. Intended for projection onto a mannequin head.
 
 ---
 
-## Current State
+## What it does
 
-Working: `reflection.py`
-- Camera → MediaPipe face crop → SD1.5 img2img → tkinter display
-- Iterative: each generation feeds its own output back in
-- Strength schedule: high early (rough), low later (refining)
-- Camera blended in each pass to stay anchored to subject
+The system runs two feedback loops simultaneously:
 
-**Core problem not yet solved:**
-img2img preserves *structure* (rough face shape, lighting) but doesn't preserve *identity* (your specific nose, eye shape, jawline, skin tone). The output looks like "a face" not "your face."
+**Identity loop (slow):** InsightFace extracts a 512-dim face embedding every 0.5s. A rolling average accumulates over 20+ readings. Confidence builds over minutes. IP-Adapter FaceID injects this identity into every generation — the face becomes more specifically *you* as the session runs.
 
----
+**Generation loop (continuous):** SD 1.5 + LCM LoRA runs img2img with no interval. Each output feeds directly into the next generation's init image, blended with the live camera frame. Every denoising step is decoded and pushed to a 60fps display that smoothly interpolates between steps. You see the model working — not discrete outputs, continuous transformation.
 
-## The Identity Problem
-
-### How forensic artists actually reconstruct faces
-
-Police composite systems (FACES, E-FIT, IDENTIKIT) work by decomposing the face into discrete features — eye shape, nose bridge width, lip thickness, jaw angle — and iterating with a witness until the composite converges on the target. The witness is the feedback loop.
-
-In our system: **the camera is the witness. The face embedding is the composite data.**
-
-### What we need: face identity embeddings
-
-A face recognition model (ArcFace, FaceNet, InsightFace) compresses a face into a ~512-dimensional vector that encodes identity — not pixels, not structure, but the mathematical signature of WHO someone is. Two photos of the same person taken years apart will have nearly identical embeddings. A photo of their sibling will be close but distinct.
-
-This embedding is what we need to feed into generation.
-
-### The right technical stack
-
-| Component | Purpose | Model |
-|-----------|---------|-------|
-| Face detection + crop | Isolate face from background | MediaPipe FaceLandmarker ✅ |
-| Face identity embedding | Extract WHO the person is | InsightFace / ArcFace |
-| Structure conditioning | Preserve face geometry | ControlNet OpenPose/Face |
-| Identity-conditioned generation | Generate face that looks like them | IP-Adapter FaceID |
-
-**IP-Adapter FaceID** is the key missing piece. It was specifically designed for this:
-- Takes a face embedding as input (not a prompt, not an image)
-- Injects identity into SD at the attention layer level
-- Output looks like the person even with style changes
-
-**InstantID** is even stronger — combines face embedding + ControlNet structure in one pass.
-
-### The "noise resolving into your face" visual
-
-Currently the noise-to-face visual comes from watching SD denoising steps.
-The right version: start with pure noise, use IP-Adapter FaceID to guide denoising
-toward the subject's identity. As more camera frames are captured and averaged,
-the identity embedding becomes more confident → the face that emerges becomes
-more specifically them.
-
-Early frames: noisy embedding → face could be anyone
-Later frames: stable embedding → unmistakably that person
+TV static overlays the output at a level inverse to confidence. At zero confidence: pure static. At full confidence: a minimum residual grain that never fully disappears.
 
 ---
 
-## File Structure
+## Versions
 
-```
-reflection.py          — current working version (img2img iterative)
-test_camera.py         — tests MediaPipe face landmark rendering, no ML
-download_models.py     — pre-downloads SD1.5 + ControlNet weights
-models/
-  face_landmarker.task — MediaPipe face detection model
-past_version/          — earlier architecture (ControlNet + full pipeline)
-src/                   — earlier modular components (camera, features, display, generator)
-.venv/                 — Python 3.12 virtualenv
-requirements.txt       — dependencies
-```
+| File | What it is |
+|------|-----------|
+| `reflection.py` | **Current.** Standalone webcam version. |
+| `mac-server/` | WebSocket server for iPad TrueDepth integration. |
+| `ipad-app/` | Swift/ARKit iPad client (import into Xcode). |
+
+---
+
+## Hardware
+
+- MacBook Pro M4 (24GB) — all inference runs on MPS (Apple Silicon GPU)
+- Webcam or built-in camera — for standalone `reflection.py`
+- iPad Pro M4 — for TrueDepth integration (optional, separate setup)
 
 ---
 
 ## Environment
 
-- Hardware: M4 MacBook Pro 24GB RAM
-- Python: 3.12 (venv at `.venv/`)
-- Device: MPS (Apple Silicon GPU)
-- **Important:** must use `float32` not `float16` — float16 produces black images on MPS
-- **Important:** load ML models BEFORE initializing pygame/tkinter to avoid Metal GPU conflict
-- Activate venv: `source .venv/bin/activate`
-
-## Installed
-
-```
-torch (MPS, float32)
-diffusers + transformers + accelerate + peft
-mediapipe 0.10+ (Tasks API — NOT solutions API which was removed)
-opencv-python-headless
-pillow
+```bash
+# Python 3.12 venv at .venv/
+source .venv/bin/activate
 ```
 
-## Models cached (~5.6GB)
+All models load from `~/.cache/huggingface/hub/` and `~/.insightface/`. First run downloads ~6GB. Subsequent runs are instant.
 
-```
-~/.cache/huggingface/hub/models--runwayml--stable-diffusion-v1-5
-~/.cache/huggingface/hub/models--lllyasviel--control_v11p_sd15_openpose
-~/.cache/huggingface/hub/models--latent-consistency--lcm-lora-sdv1-5
-```
-
----
-
-## Next Steps
-
-1. **Add InsightFace** for face embedding extraction
-2. **Add IP-Adapter FaceID** for identity-conditioned generation
-3. **Accumulate embeddings** over time — average across frames for stability
-4. **Confidence-gated strength** — noisier output when embedding is weak, sharper when stable
-5. **Projection mapping** — map output to UV space for mannequin head projection
+**Critical constraints:**
+- `torch_dtype=torch.float32` — float16 produces black images on MPS
+- No `enable_attention_slicing()` — destroys IPAdapterAttnProcessor at runtime
+- `guidance_scale=1.0` — LCM requires this (0.0 is SDXL-Turbo's requirement)
+- Load all ML models **before** initializing tkinter — avoids Metal GPU conflict
 
 ---
 
 ## Run
 
+### Standalone (webcam)
+
 ```bash
 source .venv/bin/activate
-
-# Test camera + face landmarks (no ML)
-python test_camera.py
-
-# Main experience
 python reflection.py
+```
+
+| Key | Action |
+|-----|--------|
+| `R` | Noise flood — resets embedding accumulator and canvas |
+| `Q` / `Escape` | Quit |
+
+### Mac server (for iPad)
+
+```bash
+source .venv/bin/activate
+pip install fastapi "uvicorn[standard]" python-dotenv   # first time only
+cd mac-server
+python main.py
+```
+
+Server prints the Mac's local IP on startup. Enter that IP in the iPad app.
+
+---
+
+## Tuning
+
+Key parameters in `reflection.py`:
+
+```python
+STRENGTH    = 0.55   # how hard SD transforms each frame [0.3–0.8]
+                     # 0.3 = subtle drift, nearly stable, quietly wrong
+                     # 0.55 = clear morphing, recognizably you but uncanny
+                     # 0.8 = hallucinatory, barely remembers the last frame
+
+CAM_WEIGHT  = 0.25   # camera bleed into init image [0–1]
+                     # 0 = pure previous output (can drift from reality)
+                     # 0.4 = strongly anchored to your actual face shape
+                     # 1 = pure vid2vid, re-anchors every generation to camera
+
+NOISE_MIN   = 0.08   # minimum static at full confidence
+                     # raise to keep more grain even at full confidence
+
+CONFIDENCE_FULL = 20 # embeddings needed for 100% confidence (~10s at default rate)
+```
+
+---
+
+## Architecture
+
+```
+Camera (60fps)
+  │
+  ├─ embedding_loop (every 0.5s)
+  │    InsightFace buffalo_l → 512-dim normed embedding
+  │    EmbeddingAccumulator → rolling average, confidence score
+  │
+  └─ generation_loop (continuous, no interval)
+       init_img = blend(last_output, camera_frame, CAM_WEIGHT)
+       SD 1.5 img2img + LCM LoRA (4–6 steps)
+       IP-Adapter FaceID (scale rises with confidence)
+         │
+         └─ callback_on_step_end
+              decode latent → PIL image
+              noise_blend(step_img, step_noise)
+              push_step() → interpolation buffer
+                │
+                └─ tick() at 60fps
+                     Image.blend(step_a, step_b, alpha)
+                     → tkinter display
+```
+
+---
+
+## Models (cached, ~6.5GB total)
+
+| Model | Size | Path |
+|-------|------|------|
+| `runwayml/stable-diffusion-v1-5` | ~4GB | `~/.cache/huggingface/hub/` |
+| `h94/IP-Adapter-FaceID` | ~200MB | `~/.cache/huggingface/hub/` |
+| `latent-consistency/lcm-lora-sdv1-5` | ~67MB | `~/.cache/huggingface/hub/` |
+| `insightface buffalo_l` | ~500MB | `~/.insightface/models/` |
+
+---
+
+## iPad Integration
+
+TrueDepth camera on iPad Pro sends 52 ARKit blend shapes + head euler angles over WebSocket to the Mac. The Mac renders using ControlNet OpenPose conditioned on a skeleton built from those blend shapes, with morph weight rising over ~15 minutes (0 = random face, 1 = your geometry).
+
+### Xcode setup
+
+1. New Xcode project — App, SwiftUI, iPad target
+2. Add files from `ipad-app/Mirror/` (ARKit, App, Network, Views folders)
+3. `Info.plist` → add `NSCameraUsageDescription`
+4. Build & run on iPad Pro (TrueDepth required — simulator won't work)
+
+### Protocol
+
+```
+iPad → Mac  (10fps)
+  { type: "face_frame", blend_shapes: {...52 keys...}, head_euler: {pitch, yaw, roll} }
+
+Mac → iPad
+  { type: "face_frame", jpeg_b64: "...", morph_weight: 0.34, generation_ms: 4200 }
+```
+
+---
+
+## Dependencies
+
+```
+torch (MPS, float32)
+diffusers + transformers + accelerate + peft
+insightface
+opencv-python-headless
+pillow
+tkinter (stdlib)
+
+# iPad server only:
+fastapi + uvicorn[standard] + python-dotenv
 ```
