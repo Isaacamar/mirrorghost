@@ -1,20 +1,25 @@
 """
-Reflection v2 — IP-Adapter FaceID + noise persistence
+Reflection v3 — continuous img2img + 60fps step interpolation
 
 Visual concept:
-  TV static fills the screen at first.
-  As InsightFace accumulates your identity, the static clears.
-  Your face emerges from the noise — uncanny, recognizable, wrong.
+  The face is permanently mid-generation. It never resolves, never resets.
+  Each denoising step is decoded and pushed to a display thread that runs
+  at 60fps, smoothly interpolating between steps so the model's work
+  appears as continuous flowing transformation — not discrete jumps.
 
-Two convergence axes:
-  Session axis:    static fades as embedding count rises (minutes)
-  Generation axis: each run shows noise → face in real-time (seconds)
+  Two forces in tension:
+    Camera input  — bleeds into every init image, anchors output to your face
+    SD generation — continuously transforms it into something slightly wrong
 
-A fixed session seed anchors the base identity for the session.
-IP-Adapter scale rises with confidence, pulling that face toward the subject.
-The static never fully disappears — it lingers at NOISE_MIN.
+  IP-Adapter FaceID pulls each generation toward your specific identity.
+  TV static fades as face confidence builds, but never fully disappears.
 
-Controls: Q / Escape = quit    R = noise flood (reset embedding + canvas)
+  STRENGTH controls the character of the piece:
+    0.3 = subtle per-frame drift, nearly stable, quietly wrong
+    0.55 = clear transformation, morphing, recognizably you but uncanny
+    0.8 = heavy, each frame barely remembers the last, hallucinatory
+
+Controls: Q / Escape = quit    R = noise flood (reset)
 """
 
 import os, time, threading, collections, random
@@ -26,26 +31,25 @@ import torch
 from PIL import Image, ImageTk
 import tkinter as tk
 from insightface.app import FaceAnalysis
-from diffusers import StableDiffusionPipeline, LCMScheduler
+from diffusers import StableDiffusionImg2ImgPipeline, LCMScheduler
 
-# ── Config ────────────────────────────────────────────────────────────────────
-INTERVAL         = 12      # seconds between generations
-EMBED_INTERVAL   = 1.0     # seconds between embedding extractions
-MAX_EMBEDDINGS   = 60      # rolling window size
-CONFIDENCE_FULL  = 20      # embeddings for 100% confidence
-DISPLAY_RATE     = 0.33    # seconds between display refreshes between generations
-NOISE_MIN        = 0.12    # minimum noise at full confidence — always slightly wrong
+# ── Config ─────────────────────────────────────────────────────────────────────
+STRENGTH        = 0.55   # how much each generation transforms the init [0.3–0.8]
+CAM_WEIGHT      = 0.25   # camera bleed into init [0=pure canvas, 1=pure camera]
+EMBED_INTERVAL  = 0.5    # seconds between embedding extractions
+MAX_EMBEDDINGS  = 60
+CONFIDENCE_FULL = 20
+NOISE_MIN       = 0.08   # minimum static at full confidence
 
-SESSION_SEED     = random.randint(0, 2**32)  # fixes the base face for this session
+SESSION_SEED    = random.randint(0, 2**32)
 
 CAM  = 0
 W, H = 800, 800
 
-STEPS_MIN   = 4            # denoising steps at zero confidence
-STEPS_MAX   = 8            # denoising steps at full confidence
-IP_MIN      = 0.25         # IP-Adapter scale at zero confidence
-IP_MAX      = 0.90         # IP-Adapter scale at full confidence
-GUIDANCE    = 1.0          # 1.0 = no CFG (required for ip_adapter_image_embeds shape)
+STEPS    = 6             # LCM steps; actual denoising = int(STEPS * STRENGTH) ≈ 3
+IP_MIN   = 0.25          # IP-Adapter scale at zero confidence
+IP_MAX   = 0.85          # IP-Adapter scale at full confidence
+GUIDANCE = 1.0           # 1.0 = no CFG (LCM requirement — not 0.0)
 
 PROMPT   = ("photorealistic human face portrait, studio lighting, "
             "sharp focus, detailed skin texture, neutral expression, "
@@ -55,7 +59,7 @@ NEGATIVE = ("cartoon, anime, painting, deformed, blurry, text, watermark, "
             "bad anatomy, artifacts")
 
 
-# ── Noise / static ────────────────────────────────────────────────────────────
+# ── Noise / static ─────────────────────────────────────────────────────────────
 def make_static(size: int = 512) -> Image.Image:
     """TV static: grayscale base with chromatic fringing."""
     luma = np.random.randint(20, 190, (size, size), dtype=np.uint8)
@@ -66,13 +70,13 @@ def make_static(size: int = 512) -> Image.Image:
 
 
 def noise_blend(img: Image.Image, alpha: float) -> Image.Image:
-    """Overlay static on img. alpha=1.0 → pure static, alpha=0.0 → clean image."""
+    """Overlay static on img. alpha=1.0 → pure static, 0.0 → clean image."""
     if alpha <= 0.01:
         return img
     return Image.blend(img, make_static(img.width), min(alpha, 1.0))
 
 
-# ── Embedding accumulator ─────────────────────────────────────────────────────
+# ── Embedding accumulator ───────────────────────────────────────────────────────
 class EmbeddingAccumulator:
     """Thread-safe rolling average of 512-dim InsightFace embeddings."""
 
@@ -101,7 +105,7 @@ class EmbeddingAccumulator:
             return len(self._buf)
 
 
-# ── Load all ML models BEFORE opening tkinter ─────────────────────────────────
+# ── Load ML models BEFORE tkinter ──────────────────────────────────────────────
 print("Loading InsightFace buffalo_l...")
 face_app = FaceAnalysis(
     name="buffalo_l",
@@ -110,14 +114,13 @@ face_app = FaceAnalysis(
 face_app.prepare(ctx_id=0, det_size=(640, 640))
 print("InsightFace ready.")
 
-print("Loading SD 1.5...")
-pipe = StableDiffusionPipeline.from_pretrained(
+print("Loading SD 1.5 (img2img)...")
+pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
     "runwayml/stable-diffusion-v1-5",
     torch_dtype=torch.float32,
     safety_checker=None,
 )
 
-# IP-Adapter FaceID also loads the FaceID LoRA (K/Q attention) via PEFT
 print("Loading IP-Adapter FaceID...")
 pipe.load_ip_adapter(
     "h94/IP-Adapter-FaceID",
@@ -126,20 +129,18 @@ pipe.load_ip_adapter(
     image_encoder_folder=None,
 )
 
-# Load LCM LoRA for fast inference, fuse with FaceID LoRA
 print("Loading LCM LoRA...")
 pipe.load_lora_weights("latent-consistency/lcm-lora-sdv1-5", adapter_name="lcm")
 pipe.set_adapters(["lcm", "faceid_0"], adapter_weights=[1.0, 1.0])
 pipe.fuse_lora()
 pipe.scheduler = LCMScheduler.from_config(pipe.scheduler.config)
 pipe = pipe.to("mps")
-# IMPORTANT: do not call enable_attention_slicing after load_ip_adapter —
-# it replaces IPAdapterAttnProcessor with SlicedAttnProcessor and breaks the pipeline.
+# DO NOT call enable_attention_slicing — destroys IPAdapterAttnProcessor
 
 print(f"Pipeline ready.  session_seed={SESSION_SEED}\n")
 
 
-# ── Camera + InsightFace ──────────────────────────────────────────────────────
+# ── Camera ─────────────────────────────────────────────────────────────────────
 cap = cv2.VideoCapture(CAM)
 for _ in range(8):
     cap.read()  # flush startup frames
@@ -148,7 +149,6 @@ accumulator = EmbeddingAccumulator()
 
 
 def extract_embedding(bgr: np.ndarray) -> np.ndarray | None:
-    """Run InsightFace; return normed 512-dim embedding of largest face, or None."""
     faces = face_app.get(bgr)
     if not faces:
         return None
@@ -156,7 +156,7 @@ def extract_embedding(bgr: np.ndarray) -> np.ndarray | None:
     return face.normed_embedding
 
 
-# ── tkinter display ───────────────────────────────────────────────────────────
+# ── tkinter display: 60fps with step interpolation ─────────────────────────────
 root = tk.Tk()
 root.title("Reflection")
 root.configure(bg="#080808")
@@ -170,19 +170,50 @@ status_label = tk.Label(root, text="initializing...", fg="#555", bg="#080808",
                         font=("Courier", 11), anchor="w")
 status_label.pack(fill="x", padx=12)
 
-_lock        = threading.Lock()
-_pending_img = [None]
-_pending_st  = [""]
+# Interpolation state: smoothly blend between consecutive denoising steps
+_ilock    = threading.Lock()
+_step_a   = [None]   # image at step N-1 (interpolation source)
+_step_b   = [None]   # image at step N   (interpolation target)
+_step_b_t = [0.0]    # time _step_b was set
+_step_dur = [1.5]    # EMA of seconds between steps
+
+_status_buf  = [""]
+_status_lock = threading.Lock()
 
 
-def push_img(img: Image.Image):
-    with _lock:
-        _pending_img[0] = img.copy()
+def push_step(img: Image.Image):
+    """Push a newly decoded denoising step. The display interpolates toward it."""
+    now = time.time()
+    with _ilock:
+        if _step_b[0] is not None:
+            elapsed = now - _step_b_t[0]
+            if elapsed > 0.05:
+                _step_dur[0] = 0.7 * _step_dur[0] + 0.3 * elapsed  # EMA smoothing
+            _step_a[0] = _step_b[0]
+        else:
+            _step_a[0] = img  # first step ever: no src yet, set both
+        _step_b[0] = img
+        _step_b_t[0] = now
 
 
 def push_status(s: str):
-    with _lock:
-        _pending_st[0] = s
+    with _status_lock:
+        _status_buf[0] = s
+
+
+def get_display_frame() -> Image.Image | None:
+    """Compute the interpolated frame for the current moment in time."""
+    with _ilock:
+        a   = _step_a[0]
+        b   = _step_b[0]
+        t   = _step_b_t[0]
+        dur = _step_dur[0]
+    if b is None:
+        return None
+    if a is None or a is b:
+        return b
+    alpha = min(1.0, (time.time() - t) / max(dur, 0.05))
+    return Image.blend(a, b, alpha)
 
 
 _tk_img = [None]
@@ -190,22 +221,22 @@ _img_id = [None]
 
 
 def tick():
-    with _lock:
-        img = _pending_img[0]; _pending_img[0] = None
-        s   = _pending_st[0];  _pending_st[0]  = ""
-    if img is not None:
-        disp = img.resize((W, H), Image.BILINEAR)
+    frame = get_display_frame()
+    if frame is not None:
+        disp = frame.resize((W, H), Image.BILINEAR)
         _tk_img[0] = ImageTk.PhotoImage(disp)
         if _img_id[0] is None:
             _img_id[0] = canvas_widget.create_image(0, 0, anchor="nw", image=_tk_img[0])
         else:
             canvas_widget.itemconfig(_img_id[0], image=_tk_img[0])
+    with _status_lock:
+        s = _status_buf[0]
     if s:
         status_label.config(text=f"  {s}")
-    root.after(33, tick)
+    root.after(16, tick)  # ~60fps
 
 
-root.after(33, tick)
+root.after(16, tick)
 root.bind("<Escape>", lambda _: root.quit())
 root.bind("<q>",      lambda _: root.quit())
 
@@ -215,13 +246,14 @@ reset_flag = [False]
 def on_reset(_):
     reset_flag[0] = True
     accumulator.reset()
+    push_step(make_static())
     push_status("noise flood")
 
 
 root.bind("<r>", on_reset)
 
 
-# ── Embedding extraction thread ───────────────────────────────────────────────
+# ── Embedding extraction thread ─────────────────────────────────────────────────
 def embedding_loop():
     while True:
         ret, frame = cap.read()
@@ -236,107 +268,103 @@ def embedding_loop():
 threading.Thread(target=embedding_loop, daemon=True).start()
 
 
-# ── Generation loop ───────────────────────────────────────────────────────────
+# ── Generation loop ─────────────────────────────────────────────────────────────
 def generation_loop():
-    clean_canvas = [None]   # latest clean generated image (512×512 PIL)
-    last_gen = -INTERVAL    # trigger first generation immediately
+    canvas       = [None]                              # last complete output (512×512 PIL)
+    actual_steps = max(1, int(STEPS * STRENGTH))       # real denoising steps after noise schedule
 
     while True:
-        # Noise flood reset: clear canvas, restart convergence
+        # Noise flood reset
         if reset_flag[0]:
             reset_flag[0] = False
-            clean_canvas[0] = None
-            last_gen = -INTERVAL
+            canvas[0] = None
+            push_step(make_static())
             print("[reset]  noise flood")
+            time.sleep(0.3)
+            continue
 
-        n = accumulator.count
+        # Camera frame — always read fresh
+        ret, frame = cap.read()
+        if not ret:
+            time.sleep(0.1)
+            continue
+        frame   = cv2.flip(frame, 1)
+        cam_img = Image.fromarray(
+            cv2.cvtColor(cv2.resize(frame, (512, 512)), cv2.COLOR_BGR2RGB)
+        )
+
+        # Identity
         embedding, confidence = accumulator.get()
-
-        # noise_alpha: 1.0 = pure static, NOISE_MIN = minimal static at full confidence
+        n           = accumulator.count
         noise_alpha = max(NOISE_MIN, 1.0 - confidence)
+        ip_scale    = IP_MIN + confidence * (IP_MAX - IP_MIN)
 
-        now = time.time()
-        remaining = int(INTERVAL - (now - last_gen))
+        # Build init image:
+        #   first run → noisy camera (seeds the process with your presence + static)
+        #   subsequent → blend previous output with camera (continuity + anchoring)
+        if canvas[0] is None:
+            init_img = noise_blend(cam_img, 0.75)
+        else:
+            init_img = Image.blend(canvas[0], cam_img, CAM_WEIGHT)
 
-        if remaining > 0:
-            # Between generations: show canvas blended with static (flickering at ~3fps)
-            base = clean_canvas[0] if clean_canvas[0] is not None else make_static()
-            push_img(noise_blend(base, noise_alpha))
-            icon = "●" if n > 0 else "○"
-            push_status(
-                f"{icon}  n={n}  conf={confidence:.0%}  "
-                f"static={noise_alpha:.2f}  next in {remaining}s  |  R=flood"
-            )
-            time.sleep(DISPLAY_RATE)
-            continue
-
-        # No face yet — hold in static
+        # No face detected yet — hold in animated static
         if embedding is None:
-            push_img(make_static())
-            push_status("no face detected — look at camera")
-            time.sleep(1.0)
+            push_step(make_static(512))
+            push_status("no face — look at camera")
+            time.sleep(0.5)
             continue
 
-        # Schedule from confidence
-        steps    = int(STEPS_MIN + confidence * (STEPS_MAX - STEPS_MIN))
-        ip_scale = IP_MIN + confidence * (IP_MAX - IP_MIN)
-
-        print(f"\n[gen]  n={n}  conf={confidence:.0%}  steps={steps}  "
-              f"ip={ip_scale:.2f}  seed={SESSION_SEED}")
-        push_status(f"generating...  conf={confidence:.0%}  steps={steps}  ip={ip_scale:.2f}")
-
-        last_gen = time.time()
-
-        # Raw 512-dim embedding — pipeline projects to [1, 4, 768] internally
-        face_t = torch.from_numpy(embedding).float().unsqueeze(0).unsqueeze(0).to("mps")  # [1, 1, 512]
+        face_t = torch.from_numpy(embedding).float().unsqueeze(0).unsqueeze(0).to("mps")
         pipe.set_ip_adapter_scale(ip_scale)
         generator = torch.Generator(device="mps").manual_seed(SESSION_SEED)
 
+        push_status(
+            f"● n={n}  conf={confidence:.0%}  "
+            f"ip={ip_scale:.2f}  static={noise_alpha:.2f}  |  R=flood"
+        )
+
+        # Step callback: decode each latent and push to the display interpolator.
+        # Noise is heavier at early steps, clears toward the final step.
         def on_step(pipeline, step_idx, _, callback_kwargs,
-                    _steps=steps, _na=noise_alpha):
-            """Show each denoising step blended with noise — face emerges through static."""
+                    _steps=actual_steps, _na=noise_alpha):
             latents = callback_kwargs.get("latents")
             if latents is not None:
                 with torch.no_grad():
                     scaled  = latents / pipeline.vae.config.scaling_factor
                     decoded = pipeline.vae.decode(scaled, return_dict=False)[0]
-                decoded = (decoded / 2 + 0.5).clamp(0, 1)
-                arr = (decoded[0].cpu().permute(1, 2, 0).numpy() * 255).astype(np.uint8)
-                step_img = Image.fromarray(arr)
-                # Extra noise at early steps, clears by final step
-                step_frac = (step_idx + 1) / _steps
-                step_noise = _na + (1.0 - _na) * (1.0 - step_frac) * 0.5
-                push_img(noise_blend(step_img, min(0.95, step_noise)))
-                push_status(f"step {step_idx + 1}/{_steps}  |  conf {confidence:.0%}")
+                decoded   = (decoded / 2 + 0.5).clamp(0, 1)
+                arr       = (decoded[0].cpu().permute(1, 2, 0).numpy() * 255).astype(np.uint8)
+                step_img  = Image.fromarray(arr)
+                step_frac = (step_idx + 1) / max(_steps, 1)
+                # Noise envelope: starts above _na, falls to _na at final step
+                step_noise = _na + (1.0 - _na) * (1.0 - step_frac) * 0.45
+                push_step(noise_blend(step_img, min(0.92, step_noise)))
             return callback_kwargs
 
         try:
-            t0 = time.time()
             result = pipe(
                 prompt=PROMPT,
                 negative_prompt=NEGATIVE,
+                image=init_img,
+                strength=STRENGTH,
                 ip_adapter_image_embeds=[face_t],
-                num_inference_steps=steps,
+                num_inference_steps=STEPS,
                 guidance_scale=GUIDANCE,
                 generator=generator,
                 callback_on_step_end=on_step,
                 callback_on_step_end_tensor_inputs=["latents"],
             )
-            elapsed = time.time() - t0
-            clean_canvas[0] = result.images[0]
-            # Final display: clean output at current noise level
-            push_img(noise_blend(clean_canvas[0], noise_alpha))
-            push_status(
-                f"done {elapsed:.1f}s  |  conf={confidence:.0%}  "
-                f"static={noise_alpha:.2f}  n={n}  |  R=flood"
-            )
-            print(f"[gen]  done in {elapsed:.1f}s")
+            canvas[0] = result.images[0]
+            # Final push: clean output at base noise level — immediately becomes
+            # the next generation's init, so it flows without pause
+            push_step(noise_blend(canvas[0], noise_alpha))
 
         except Exception as e:
             print(f"[gen]  error: {e}")
             import traceback
             traceback.print_exc()
             push_status(f"error: {e}")
+            time.sleep(1.0)
 
 
 threading.Thread(target=generation_loop, daemon=True).start()
