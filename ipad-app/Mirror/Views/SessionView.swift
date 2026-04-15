@@ -43,7 +43,11 @@ struct SessionView: View {
             .environmentObject(state)
         }
         .onDisappear {
-            state.disconnect()
+            // Only disconnect when the view is truly gone (app backgrounded),
+            // not when a sheet is presented over it
+            if !showConnect {
+                state.disconnect()
+            }
         }
     }
 }

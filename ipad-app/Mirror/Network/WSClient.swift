@@ -5,7 +5,6 @@ class WSClient: NSObject, ObservableObject {
     private var webSocketTask: URLSessionWebSocketTask?
     private var urlSession: URLSession?
 
-    // Callbacks — called on background thread, dispatch to main if needed
     var onFaceFrame:    ((UIImage?, Double, Int, Int) -> Void)?
     var onConnected:    (() -> Void)?
     var onDisconnected: (() -> Void)?
@@ -16,9 +15,7 @@ class WSClient: NSObject, ObservableObject {
             return
         }
         print("[WSClient]  connecting to \(url)")
-        urlSession    = URLSession(configuration: .default,
-                                  delegate: self,
-                                  delegateQueue: OperationQueue())
+        urlSession    = URLSession(configuration: .default, delegate: self, delegateQueue: OperationQueue())
         webSocketTask = urlSession?.webSocketTask(with: url)
         webSocketTask?.resume()
         receiveLoop()
@@ -31,7 +28,8 @@ class WSClient: NSObject, ObservableObject {
 
     // MARK: - Sending
 
-    func sendFaceFrame(blendShapes: [String: Float], euler: (pitch: Float, yaw: Float, roll: Float)) {
+    func sendFaceFrame(blendShapes: [String: Float],
+                       euler: (pitch: Float, yaw: Float, roll: Float)) {
         let payload: [String: Any] = [
             "type":      "face_frame",
             "timestamp": Date().timeIntervalSince1970,
@@ -45,13 +43,16 @@ class WSClient: NSObject, ObservableObject {
         send(payload)
     }
 
-    func sendAdvanceMorph() {
-        send(["type": "advance_morph"])
+    func sendFaceImage(_ jpegData: Data) {
+        let payload: [String: Any] = [
+            "type":      "face_image",
+            "jpeg_b64":  jpegData.base64EncodedString(),
+        ]
+        send(payload)
     }
 
-    func sendReset() {
-        send(["type": "reset"])
-    }
+    func sendAdvanceMorph() { send(["type": "advance_morph"]) }
+    func sendReset()        { send(["type": "reset"]) }
 
     private func send(_ payload: [String: Any]) {
         guard let data = try? JSONSerialization.data(withJSONObject: payload),
@@ -68,14 +69,12 @@ class WSClient: NSObject, ObservableObject {
             switch result {
             case .success(let message):
                 switch message {
-                case .string(let text): self?.handleMessage(text)
+                case .string(let text):   self?.handleMessage(text)
                 case .data(let data):
-                    if let text = String(data: data, encoding: .utf8) {
-                        self?.handleMessage(text)
-                    }
+                    if let text = String(data: data, encoding: .utf8) { self?.handleMessage(text) }
                 @unknown default: break
                 }
-                self?.receiveLoop()   // reschedule
+                self?.receiveLoop()
             case .failure(let error):
                 print("[WSClient]  receive error: \(error)")
                 self?.onDisconnected?()
@@ -90,23 +89,17 @@ class WSClient: NSObject, ObservableObject {
 
         switch type {
         case "server_ready":
-            let sd  = json["sd_model"] as? String ?? ""
-            let cn  = json["controlnet_model"] as? String ?? ""
-            print("[WSClient]  server_ready — sd=\(sd)  controlnet=\(cn)")
+            print("[WSClient]  server_ready")
             onConnected?()
 
         case "face_frame":
-            guard let b64   = json["jpeg_b64"] as? String,
+            guard let b64    = json["jpeg_b64"] as? String,
                   let imgData = Data(base64Encoded: b64),
-                  let image  = UIImage(data: imgData) else { return }
-            let morph  = json["morph_weight"]  as? Double ?? 0
-            let index  = json["frame_index"]   as? Int    ?? 0
-            let ms     = json["generation_ms"] as? Int    ?? 0
+                  let image   = UIImage(data: imgData) else { return }
+            let morph = json["morph_weight"]  as? Double ?? 0
+            let index = json["frame_index"]   as? Int    ?? 0
+            let ms    = json["generation_ms"] as? Int    ?? 0
             onFaceFrame?(image, morph, index, ms)
-
-        case "morph_update":
-            // AppState handles this via onFaceFrame; or expose a separate callback here
-            break
 
         default:
             break
@@ -121,14 +114,13 @@ extension WSClient: URLSessionWebSocketDelegate {
                     webSocketTask: URLSessionWebSocketTask,
                     didOpenWithProtocol protocol: String?) {
         print("[WSClient]  connection opened")
-        // server_ready message triggers onConnected — don't double-fire here
     }
 
     func urlSession(_ session: URLSession,
                     webSocketTask: URLSessionWebSocketTask,
                     didCloseWith closeCode: URLSessionWebSocketTask.CloseCode,
                     reason: Data?) {
-        print("[WSClient]  connection closed: \(closeCode)")
+        print("[WSClient]  connection closed")
         onDisconnected?()
     }
 }

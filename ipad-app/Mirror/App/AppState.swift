@@ -2,26 +2,21 @@ import SwiftUI
 import Combine
 
 class AppState: ObservableObject {
-    // Connection
     @Published var connected: Bool = false
     @Published var serverIP: String = UserDefaults.standard.string(forKey: "serverIP") ?? ""
 
-    // Display
     @Published var currentFaceImage: UIImage? = nil
     @Published var morphWeight: Double = 0.0
     @Published var frameIndex: Int = 0
     @Published var generationMs: Int = 0
 
-    // Face tracking
     @Published var faceDetected: Bool = false
     @Published var blendShapeCount: Int = 0
 
-    // Debug
     @Published var fps: Double = 0.0
     private var lastFrameTime: Date = .distantPast
     private var frameTimes: [TimeInterval] = []
 
-    // Shared instances
     let wsClient    = WSClient()
     let faceTracker = FaceTracker()
 
@@ -41,11 +36,22 @@ class AppState: ObservableObject {
         wsClient.onDisconnected = { [weak self] in
             DispatchQueue.main.async { self?.connected = false }
         }
+
         faceTracker.onBlendShapes = { [weak self] blendShapes, euler in
-            self?.blendShapeCount = blendShapes.count
-            self?.faceDetected    = true
+            // @Published mutations on main thread
+            DispatchQueue.main.async {
+                self?.blendShapeCount = blendShapes.count
+                self?.faceDetected    = true
+            }
+            // Network sends are fine on background thread
             self?.wsClient.sendFaceFrame(blendShapes: blendShapes, euler: euler)
         }
+
+        // Face image for InsightFace identity extraction on Mac (1fps)
+        faceTracker.onFaceImage = { [weak self] jpegData in
+            self?.wsClient.sendFaceImage(jpegData)
+        }
+
         faceTracker.onNoFace = { [weak self] in
             DispatchQueue.main.async { self?.faceDetected = false }
         }
@@ -62,16 +68,11 @@ class AppState: ObservableObject {
         faceTracker.stop()
     }
 
-    func advanceMorph() {
-        wsClient.sendAdvanceMorph()
-    }
-
-    func reset() {
-        wsClient.sendReset()
-    }
+    func advanceMorph() { wsClient.sendAdvanceMorph() }
+    func reset()        { wsClient.sendReset() }
 
     private func updateFPS() {
-        let now = Date()
+        let now      = Date()
         let interval = now.timeIntervalSince(lastFrameTime)
         lastFrameTime = now
         frameTimes.append(interval)

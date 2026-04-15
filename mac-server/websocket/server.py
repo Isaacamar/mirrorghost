@@ -1,25 +1,27 @@
 """
-server.py — FastAPI WebSocket handler
+server.py — WebSocket handler with InsightFace + EmbeddingAccumulator
 
-Architecture:
-  - One WebSocket client at a time (iPad)
-  - WS receive handler runs in the async event loop (updates shared state)
-  - Generation loop runs in a thread executor (blocks during SD inference)
-  - Results are sent back via a queue bridged to the async sender task
+Message flow:
+  iPad → Mac: face_frame (blend shapes + euler), face_image (JPEG for InsightFace)
+  Mac → iPad: server_ready, face_frame (generated JPEG + morph_weight)
 """
 
 import asyncio
+import base64
 import queue
 import threading
 import time
 
+import cv2
+import numpy as np
 from fastapi import WebSocket, WebSocketDisconnect
 
 from websocket.protocol import (
     server_ready, face_frame_out, morph_update, parse_incoming
 )
 from pipeline.conditioning import build_conditioning_image
-from pipeline.face_utils import encode_jpeg, blank_canvas
+from pipeline.face_utils    import encode_jpeg, blank_canvas
+from pipeline.embeddings    import EmbeddingAccumulator
 from config import (
     SD_MODEL_ID, CONTROLNET_MODEL_ID,
     MORPH_ADVANCE_INTERVAL_SECONDS, MORPH_INCREMENT, JPEG_QUALITY
@@ -27,14 +29,14 @@ from config import (
 
 
 class SharedState:
-    """Thread-safe face tracking state updated by the WebSocket receiver."""
+    """Thread-safe state updated by the WebSocket receiver."""
     def __init__(self):
         self._lock        = threading.Lock()
         self.blend_shapes: dict = {}
         self.head_euler:   dict = {}
         self.has_face: bool     = False
 
-    def update(self, blend_shapes: dict, head_euler: dict):
+    def update_face_frame(self, blend_shapes: dict, head_euler: dict):
         with self._lock:
             self.blend_shapes = blend_shapes
             self.head_euler   = head_euler
@@ -45,11 +47,19 @@ class SharedState:
             return dict(self.blend_shapes), dict(self.head_euler), self.has_face
 
 
-shared_state  = SharedState()
-stop_gen      = threading.Event()
+def extract_embedding(face_app, bgr: np.ndarray) -> np.ndarray | None:
+    """Run InsightFace on a BGR frame; return normed 512-dim embedding or None."""
+    faces = face_app.get(bgr)
+    if not faces:
+        return None
+    face = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
+    return face.normed_embedding
 
 
-async def websocket_handler(websocket: WebSocket, pipeline, morph_state):
+stop_gen = threading.Event()
+
+
+async def websocket_handler(websocket: WebSocket, pipeline, morph_state, face_app):
     await websocket.accept()
     print("[ws]  client connected")
 
@@ -57,11 +67,11 @@ async def websocket_handler(websocket: WebSocket, pipeline, morph_state):
     morph_state.reset()
     stop_gen.clear()
 
-    # Queue bridges the generation thread → async sender
+    shared      = SharedState()
+    accumulator = EmbeddingAccumulator()
     send_q: queue.Queue = queue.Queue()
-    loop = asyncio.get_event_loop()
 
-    # ── Sender task: drains send_q and writes to WebSocket ────────────────
+    # ── Async sender: drains send_q → WebSocket ───────────────────────────
     async def sender():
         while True:
             try:
@@ -77,36 +87,38 @@ async def websocket_handler(websocket: WebSocket, pipeline, morph_state):
         frame_index  = 0
         last_advance = time.time()
 
-        # Send first frame immediately (blank/random face before any tracking data)
         while not stop_gen.is_set():
-            blend, euler, has_face = shared_state.get()
-
+            blend, euler, has_face = shared.get()
+            embedding, confidence  = accumulator.get()
             weight = morph_state.get_weight()
+            n      = accumulator.count
 
-            if has_face:
-                conditioning = build_conditioning_image(blend, euler)
-            else:
-                conditioning = blank_canvas()
+            conditioning = build_conditioning_image(blend, euler) if has_face else blank_canvas()
 
             try:
-                image, elapsed = pipeline.generate(conditioning, weight)
+                image, elapsed = pipeline.generate(
+                    conditioning_image=conditioning,
+                    morph_weight=weight,
+                    embedding=embedding,
+                    confidence=confidence,
+                )
                 jpeg_b64 = encode_jpeg(image, quality=JPEG_QUALITY)
-                msg = face_frame_out(
+                send_q.put(face_frame_out(
                     jpeg_b64      = jpeg_b64,
                     morph_weight  = weight,
                     frame_index   = frame_index,
                     generation_ms = int(elapsed * 1000),
-                )
-                send_q.put(msg)
+                ))
                 frame_index += 1
                 print(f"[gen]  frame={frame_index}  morph={weight:.3f}  "
-                      f"face={has_face}  {elapsed:.1f}s")
+                      f"conf={confidence:.0%}  n={n}  ip={pipeline.pipe.unet.config.get('ip_adapter_scale', '?')}  "
+                      f"{elapsed:.1f}s")
             except Exception as e:
                 import traceback
                 print(f"[gen]  error: {e}")
                 traceback.print_exc()
 
-            # Auto-advance morph on timer
+            # Auto-advance morph
             if time.time() - last_advance > MORPH_ADVANCE_INTERVAL_SECONDS:
                 morph_state.advance(MORPH_INCREMENT)
                 send_q.put(morph_update(morph_state.get_weight()))
@@ -115,10 +127,9 @@ async def websocket_handler(websocket: WebSocket, pipeline, morph_state):
     gen_thread = threading.Thread(target=generation_loop, daemon=True)
     gen_thread.start()
 
-    # ── Send server_ready ────────────────────────────────────────────────
     await websocket.send_text(server_ready(SD_MODEL_ID, CONTROLNET_MODEL_ID))
 
-    # ── Receive loop ─────────────────────────────────────────────────────
+    # ── Receive loop ──────────────────────────────────────────────────────
     try:
         while True:
             raw = await websocket.receive_text()
@@ -126,10 +137,28 @@ async def websocket_handler(websocket: WebSocket, pipeline, morph_state):
             msg_type = msg.get("type")
 
             if msg_type == "face_frame":
-                shared_state.update(
+                shared.update_face_frame(
                     msg.get("blend_shapes", {}),
                     msg.get("head_euler",   {}),
                 )
+
+            elif msg_type == "face_image":
+                # iPad sends a JPEG of the user's face for InsightFace identity extraction
+                b64 = msg.get("jpeg_b64", "")
+                if b64:
+                    try:
+                        img_bytes = base64.b64decode(b64)
+                        nparr = np.frombuffer(img_bytes, np.uint8)
+                        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                        if frame is not None:
+                            emb = extract_embedding(face_app, frame)
+                            if emb is not None:
+                                accumulator.update(emb)
+                                _, conf = accumulator.get()
+                                print(f"[face]  embedding updated  "
+                                      f"n={accumulator.count}  conf={conf:.0%}")
+                    except Exception as e:
+                        print(f"[face]  image error: {e}")
 
             elif msg_type == "advance_morph":
                 morph_state.advance(MORPH_INCREMENT)
@@ -137,6 +166,7 @@ async def websocket_handler(websocket: WebSocket, pipeline, morph_state):
 
             elif msg_type == "reset":
                 morph_state.reset()
+                accumulator.reset()
                 send_q.put(morph_update(0.0))
 
     except WebSocketDisconnect:
