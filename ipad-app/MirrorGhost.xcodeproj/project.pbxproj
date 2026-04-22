@@ -1,0 +1,369 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		1A6BC97D4CA9F5491D0FAA15 /* MirrorGhostApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0251521B846C3F9A27239A /* MirrorGhostApp.swift */; };
+		1CCCBA706EDFBDED0256D1EA /* TrackingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2112E61E4A3EE6C5BE5BD3D /* TrackingState.swift */; };
+		5756C8D2FA5AB682B535DD43 /* FaceMeshRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A0A45618B3232E25AB9D0DE /* FaceMeshRenderer.swift */; };
+		87E55C18AA0E8AFF0E0434A8 /* FaceTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB713B2795A1171D18FA9934 /* FaceTracker.swift */; };
+		98F895CEDBC58122AC420933 /* BlendShapeSet.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC93B9D8410201B8CAEE9CCD /* BlendShapeSet.swift */; };
+		A999AEE670701809062C4E64 /* FaceIsolator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60C849CA871800CDBD753772 /* FaceIsolator.swift */; };
+		AEED3E02A7100AD3AB05D806 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33CC19D66E14499FD825C134 /* RootView.swift */; };
+		BCCDE4F4DD0FE9768E352033 /* FaceFrame.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32135C063BAA4CEF4F729795 /* FaceFrame.swift */; };
+		D3AE34EFF1B717677924E673 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 37473EDA8E04764E8918330D /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		32135C063BAA4CEF4F729795 /* FaceFrame.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaceFrame.swift; sourceTree = "<group>"; };
+		33CC19D66E14499FD825C134 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		37473EDA8E04764E8918330D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		471CEAFF77E8C4027400A14A /* MirrorGhost.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MirrorGhost.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4A0A45618B3232E25AB9D0DE /* FaceMeshRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaceMeshRenderer.swift; sourceTree = "<group>"; };
+		60C849CA871800CDBD753772 /* FaceIsolator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaceIsolator.swift; sourceTree = "<group>"; };
+		65988163D51A71FB97F47352 /* MirrorGhost.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MirrorGhost.entitlements; sourceTree = "<group>"; };
+		AE0251521B846C3F9A27239A /* MirrorGhostApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MirrorGhostApp.swift; sourceTree = "<group>"; };
+		CAF75AD96047238B727C84EA /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		E2112E61E4A3EE6C5BE5BD3D /* TrackingState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackingState.swift; sourceTree = "<group>"; };
+		EB713B2795A1171D18FA9934 /* FaceTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaceTracker.swift; sourceTree = "<group>"; };
+		EC93B9D8410201B8CAEE9CCD /* BlendShapeSet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlendShapeSet.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		391219780F2A869BB90E8C60 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				33CC19D66E14499FD825C134 /* RootView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		422055E51595A85907524E91 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				EC93B9D8410201B8CAEE9CCD /* BlendShapeSet.swift */,
+				32135C063BAA4CEF4F729795 /* FaceFrame.swift */,
+				AE0251521B846C3F9A27239A /* MirrorGhostApp.swift */,
+				E2112E61E4A3EE6C5BE5BD3D /* TrackingState.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		60388F3C2DC7AC8F068AE3F6 /* MirrorGhost */ = {
+			isa = PBXGroup;
+			children = (
+				37473EDA8E04764E8918330D /* Assets.xcassets */,
+				CAF75AD96047238B727C84EA /* Info.plist */,
+				65988163D51A71FB97F47352 /* MirrorGhost.entitlements */,
+				422055E51595A85907524E91 /* App */,
+				D686C4A29C313BBE525D5246 /* ARKit */,
+				391219780F2A869BB90E8C60 /* Views */,
+			);
+			path = MirrorGhost;
+			sourceTree = "<group>";
+		};
+		6BBFDE17C20CCD5C4EA04302 = {
+			isa = PBXGroup;
+			children = (
+				60388F3C2DC7AC8F068AE3F6 /* MirrorGhost */,
+				A33F70136FED60C843548FC2 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A33F70136FED60C843548FC2 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				471CEAFF77E8C4027400A14A /* MirrorGhost.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		D686C4A29C313BBE525D5246 /* ARKit */ = {
+			isa = PBXGroup;
+			children = (
+				60C849CA871800CDBD753772 /* FaceIsolator.swift */,
+				4A0A45618B3232E25AB9D0DE /* FaceMeshRenderer.swift */,
+				EB713B2795A1171D18FA9934 /* FaceTracker.swift */,
+			);
+			path = ARKit;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		AA6C224C487C94205E031860 /* MirrorGhost */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F22C1A5E024C9F911318947F /* Build configuration list for PBXNativeTarget "MirrorGhost" */;
+			buildPhases = (
+				F7D1859B29B4396382BB9F9F /* Sources */,
+				1A8CD84B3F9907BA42894EEA /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = MirrorGhost;
+			packageProductDependencies = (
+			);
+			productName = MirrorGhost;
+			productReference = 471CEAFF77E8C4027400A14A /* MirrorGhost.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		3320D07EC483D4BE2C6D74E9 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1600;
+			};
+			buildConfigurationList = 986C6085AA79E856BD0F8500 /* Build configuration list for PBXProject "MirrorGhost" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 6BBFDE17C20CCD5C4EA04302;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = A33F70136FED60C843548FC2 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AA6C224C487C94205E031860 /* MirrorGhost */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		1A8CD84B3F9907BA42894EEA /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D3AE34EFF1B717677924E673 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		F7D1859B29B4396382BB9F9F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				98F895CEDBC58122AC420933 /* BlendShapeSet.swift in Sources */,
+				BCCDE4F4DD0FE9768E352033 /* FaceFrame.swift in Sources */,
+				A999AEE670701809062C4E64 /* FaceIsolator.swift in Sources */,
+				5756C8D2FA5AB682B535DD43 /* FaceMeshRenderer.swift in Sources */,
+				87E55C18AA0E8AFF0E0434A8 /* FaceTracker.swift in Sources */,
+				1A6BC97D4CA9F5491D0FAA15 /* MirrorGhostApp.swift in Sources */,
+				AEED3E02A7100AD3AB05D806 /* RootView.swift in Sources */,
+				1CCCBA706EDFBDED0256D1EA /* TrackingState.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		5F78F2732B344678B25B924F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = MirrorGhost/MirrorGhost.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = 6LH65R36GJ;
+				INFOPLIST_FILE = MirrorGhost/Info.plist;
+				INFOPLIST_KEY_NSCameraUsageDescription = "ARKit face tracking requires camera access.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = UIInterfaceOrientationPortrait;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.mirrorghost.app;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		71CFF0D0830974828F71A876 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_BITCODE = NO;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 2;
+			};
+			name = Release;
+		};
+		9A1BF083ED3B9CC8C200E494 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_BITCODE = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 2;
+			};
+			name = Debug;
+		};
+		B595B07E39CE1B3C29643EDA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = MirrorGhost/MirrorGhost.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = 6LH65R36GJ;
+				INFOPLIST_FILE = MirrorGhost/Info.plist;
+				INFOPLIST_KEY_NSCameraUsageDescription = "ARKit face tracking requires camera access.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = UIInterfaceOrientationPortrait;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.mirrorghost.app;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		986C6085AA79E856BD0F8500 /* Build configuration list for PBXProject "MirrorGhost" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9A1BF083ED3B9CC8C200E494 /* Debug */,
+				71CFF0D0830974828F71A876 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		F22C1A5E024C9F911318947F /* Build configuration list for PBXNativeTarget "MirrorGhost" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B595B07E39CE1B3C29643EDA /* Debug */,
+				5F78F2732B344678B25B924F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 3320D07EC483D4BE2C6D74E9 /* Project object */;
+}

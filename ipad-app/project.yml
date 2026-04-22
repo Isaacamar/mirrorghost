@@ -1,0 +1,46 @@
+name: MirrorGhost
+options:
+  bundleIdPrefix: com.mirrorghost
+  deploymentTarget:
+    iOS: "17.0"
+  xcodeVersion: "16.0"
+  swift: "6.0"
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: 6.0
+    TARGETED_DEVICE_FAMILY: "2"    # iPad only
+    SUPPORTS_MACCATALYST: NO
+    ENABLE_BITCODE: NO
+
+targets:
+  MirrorGhost:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: MirrorGhost
+    resources:
+      - MirrorGhost/Assets.xcassets
+    entitlements:
+      path: MirrorGhost/MirrorGhost.entitlements
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mirrorghost.app
+        INFOPLIST_KEY_NSCameraUsageDescription: "ARKit face tracking requires camera access."
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: UIInterfaceOrientationPortrait
+    info:
+      path: MirrorGhost/Info.plist
+      properties:
+        NSCameraUsageDescription: "ARKit face tracking requires camera access."
+        UIRequiredDeviceCapabilities:
+          - arkit
+        UIStatusBarHidden: true
+        UIApplicationSupportsIndirectInputEvents: true
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+    capabilities:
+      - arkit

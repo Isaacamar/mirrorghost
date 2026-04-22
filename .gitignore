@@ -1,9 +1,49 @@
+# Python
 .venv/
 __pycache__/
 *.pyc
-.DS_Store
+*.pyo
 *.egg-info/
 dist/
 build/
 .env
 smoke_test.jpg
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Xcode
+*.xcuserstate
+xcuserdata/
+DerivedData/
+*.xccheckout
+*.moved-aside
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+timeline.xctimeline
+playground.xcworkspace
+
+# Swift Package Manager
+.build/
+Packages/
+Package.resolved
+
+# CocoaPods (not used, but just in case)
+Pods/
+
+# Models (large binaries — download separately)
+# models/ is tracked so face_landmarker.task is available
+# but never commit HuggingFace cache or InsightFace models
+.cache/
+~/.insightface/
